@@ -7,8 +7,7 @@ def recv_msg():
     while True:
         msg = client_sock.recv(1024)
         msg = pickle.loads(msg)
-        print("msg 원본: " + str(msg))
-        print(f'({msg[0]}): {msg[1]}\n>>> ', end='')  # 보낸 유저의 닉네임과 메시지 내용을 함께 출력
+        print(f'\n({msg[0]}): {msg[1]}\n>>> ', end='')  # 보낸 유저의 닉네임과 메시지 내용을 함께 출력
 
 
 def send_msg(msg):
@@ -29,8 +28,18 @@ client_sock.connect((server_host, server_port))
 print(f'Server: {server_host}, {server_port}와 정상적으로 연결')
 
 # 유저 정보 등록
-nickname = input(">>> 사용할 닉네임을 입력하세요: ")
-send_msg(nickname)
+while True:
+    nickname = input(">>> 사용할 닉네임을 입력하세요: ")
+    send_msg(nickname)
+
+    msg = client_sock.recv(1024)
+    msg = pickle.loads(msg)
+    print(f'({msg[0]}): {msg[1]}\n', end='')
+
+    if msg[2] == "Pass":        # 닉네임이 중복이 아니면 loop 탈출
+        break
+
+print("------------------------------------------------------------\n\n")
 
 recv_thread = threading.Thread(target=recv_msg)
 recv_thread.daemon = True   # 데몬 스레드로 변경 -> 메인 스레드 종료 시 자동으로 종료

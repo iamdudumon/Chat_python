@@ -6,7 +6,7 @@ import pickle           ## 비바이트 데이터를 바이트로 직렬화
 
 def client_accept():
     child = server_sock.accept()
-    print('\n===========================================\n')
+    print('\n=============================================\n')
     print(f'{child[1]}에서 접속')
     print(f'현재 접속자 수: {len(client_sockets) + 1}')
 
@@ -51,19 +51,24 @@ def recv_msg(from_client, thread_pid):
 # 접속한 사용자 닉네임 등록
 def register_user(client):
     nickname = client[0].recv(1024).decode()
-    user = Client(nickname)
-    
-    client_sockets[client] = user
-    nickname_dic[nickname] = client     # socket 객체가 복사되는 것이 아닌 기존 socket의 참조가 저장됨 -> 실질적으로 닉네임 데이터만 추가적으로 저장!!
+    # 닉네임 중복 처리
+    if nickname in nickname_dic.keys():
+        send_to_msg(["Server", "해당 닉네임은 중복입니다.", "Fail"], client)
+        print(f'닉네임 중복: ({client[1]} -> "{nickname}")')
+        register_user(client)
+    else:
+        user = Client(nickname)
+        client_sockets[client] = user
+        nickname_dic[nickname] = client     # socket 객체가 복사되는 것이 아닌 기존 socket의 참조가 저장됨 -> 실질적으로 닉네임 데이터만 추가적으로 저장!!
+        send_to_msg(["Server", "성공적으로 클라이언트가 등록 완료했습니다.", "Pass"], client)
 
-    print(f'유저 등록: ({client[1]} -> "{user.nickname}")')
+        print(f'유저 등록: ({client[1]} -> "{user.nickname}")')
 
 def disconnect_user(client, thread_pid):                # 클라이언트가 "q!" 를 보내면 접속을 종료하겠다는 의미
     print(f'"{client_sockets[client].nickname}" 가 접속을 종료.')
     client[0].close()
     del client_sockets[client]
-    # thread 리스트에서도 삭제 필요
-    # del threads[thread_pid]
+    del threads[thread_pid]     # thread 리스트에서도 삭제 필요
    
 
 threads = {}
@@ -85,12 +90,12 @@ print(f'채팅 서버 open\nhost: {host}\tport: {port}\n------------------------
 while True:
     child = client_accept()        # 만약 연결된 클라이언트가 있으면 다음 코드로 넘어감
     register_user(child)
-    print('\n===========================================\n')
+    print('\n=============================================\n')
     
     recv_thread = threading.Thread(target=recv_msg, args=(child, threads_pid))
     recv_thread.start()
-    # threads[threads_pid] = recv_thread
-    # threads_pid += 1
+    threads[threads_pid] = recv_thread
+    threads_pid += 1
 
 # child_sock.close()
 # parent_sock.close()
