@@ -17,34 +17,57 @@ def send_all_msg(msg, from_sock):                       # for 문을 통해 접�
             msg = pickle.dumps(msg)
             client_socket[0].sendall(msg)
 
-# def send_to_msg(msg, to_sock):
-#     to_sock[0].sendall(msg.encode('utf-8'))
+def send_to_msg(msg, to_sock):
+    msg = pickle.dumps(msg)
+    to_sock[0].sendall(msg)
 
-def recv_msg(from_sock, from_address):
+def recv_msg(from_client, thread_pid):
     while True:
-        client = (from_sock, from_address)
-        message = (client_sockets[client].nickname, from_sock.recv(1024).decode())       # 메세지를 보낸 유저의 닉네임과 메시지 내용을 함께 보냄
+        message = [client_sockets[from_client].nickname, from_client[0].recv(1024).decode()]      # 메세지를 보낸 유저의 닉네임과 메시지 내용을 함께 보냄
         
-        send_all_msg(message, client)
-        print(f'client({client_sockets[client].nickname}): {message[1]}')
+        if message[1] == "q!":
+            disconnect_user(from_client, thread_pid)
+            break                       # 해당 클라이언트의 thread를 종료!
+        elif message[1][0] == '@':    # 귓속말 기능
+            # nickname을 통해 해당 소켓을 찾아야 함
+            try:
+                split_message = message[1].split(':')
+                to_nickname = split_message[0]
+                to_sock = nickname_dic[to_nickname]
+                message[1] = split_message[1].strip()
+                
+                send_to_msg(message, to_sock)
+                print(f'{client_sockets[from_client].nickname} -> {to_nickname}: {message[1]}')
+            except KeyError:        # 클라이언트가 없는 유저에게 귓속말 보낼 경우 에러 메세지 반환
+                send_to_msg(["Server", "해당 닉네임은 존재하지 않습니다."], from_client)
+            
+        else:
+            send_all_msg(message, from_client)
+            print(f'client({client_sockets[from_client].nickname}): {message[1]}')
 
 # 접속한 사용자 닉네임 등록
-def register_user(client_sock):
-    nickname = client_sock[0].recv(1024).decode()
+def register_user(client):
+    nickname = client[0].recv(1024).decode()
     user = Client(nickname)
-    client_sockets[client_sock] = user
+    
+    client_sockets[client] = user
+    nickname_dic[nickname] = client     # socket 객체가 복사되는 것이 아닌 기존 socket의 참조가 저장됨 -> 실질적으로 닉네임 데이터만 추가적으로 저장!!
 
-    print(f'유저 등록: ({client_sock[1]} -> "{user.nickname}")')
+    print(f'유저 등록: ({client[1]} -> "{user.nickname}")')
 
-def disconnect_user(client_sock):
-    client_sock.close()
-    del client_sockets[client_sock]
-        
+def disconnect_user(client, thread_pid):                # 클라이언트가 "q!" 를 보내면 접속을 종료하겠다는 의미
+    print(f'"{client_sockets[client].nickname}" 가 접속을 종료.')
+    client[0].close()
+    del client_sockets[client]
+    # thread 리스트에서도 삭제 필요
+    del threads[thread_pid]
+   
 
-threads = []
-threads_size = 0
+threads = {}
+threads_pid = 0
 
 client_sockets = {}
+nickname_dic = {}       # nickname으로 소켓 찾기, 복사된 
 
 host = 'localhost'
 port = 55555
@@ -61,9 +84,10 @@ while True:
     register_user(child)
     print('\n===========================================\n')
     
-    recv_thread = threading.Thread(target=recv_msg, args=(child))
+    recv_thread = threading.Thread(target=recv_msg, args=(child, threads_pid))
     recv_thread.start()
-    threads.append(recv_thread)
+    threads[threads_pid] = recv_thread
+    threads_pid += 1
 
 # child_sock.close()
 # parent_sock.close()
