@@ -7,6 +7,7 @@ def recv_msg():
     while True:
         msg = client_sock.recv(1024)
         msg = pickle.loads(msg)
+        print("msg 원본: " + str(msg))
         print(f'({msg[0]}): {msg[1]}\n>>> ', end='')  # 보낸 유저의 닉네임과 메시지 내용을 함께 출력
 
 
